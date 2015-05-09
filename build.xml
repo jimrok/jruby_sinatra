@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project default="all" name="jruby.app.server" basedir=".">
+	<property name="lib.home" value="lib" />
+	<property name="src.home" value="src" />
+	<property name="classes.home" value="classes" />
+	<property name="dist.home" value="dist" />
+	<property name="zip.file.name" value="app_push" />
+	<property name="jruby.jar" value="jruby-complete-1.7.19.jar" />
+
+	<!--
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  base.classpath 设置编译的java的类
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  -->
+	<path id="base.classpath">
+		<fileset dir="${lib.home}">
+			<include name="**/*.jar" />
+		</fileset>
+	</path>
+	<path id="build.classpath">
+		<fileset dir="${classes.home}">
+			<include name="**/*.class" />
+		</fileset>
+	</path>
+
+
+	<!-- 初始化的具体的目录信息 -->
+	<target name="init" description="初始化代码">
+		<mkdir dir="${classes.home}" />
+		<mkdir dir="${dist.home}" />
+	</target>
+
+	<target name="clean" description="清除目录">
+		<delete dir="${classes.home}" failonerror="false" />
+	</target>
+
+
+	<target name="run" description="运行程序">
+		<java classname="com.ewhine.search.ZoieServer" fork="yes">
+			<classpath>
+				<path refid="base.classpath" />
+				<pathelement location="${build.home}/classes" />
+			</classpath>
+		</java>
+	</target>
+
+	<target name="all" description="整体的操作" depends="clean,init,javac,jar">
+	</target>
+
+
+	<target name="javac" description="javac 编译java程序">
+
+		<javac srcdir="${src.home}" destdir="${classes.home}" deprecation="on" debug="true" encoding="UTF-8" includeantruntime="false">
+			<classpath refid="base.classpath" />
+			<exclude name="test/**" />
+		</javac>
+
+
+		<copy todir="${classes.home}" overwrite="true" flatten="false">
+
+			<fileset dir="${src.home}">
+				<!--
+				<include name="**\*.properties" />
+				<include name="**\*.xml" />
+-->
+				<include name="META-INF\service.xml" />
+			</fileset>
+		</copy>
+
+	</target>
+
+	<target name="jar" description="创建jar的文件" depends="clean,init,javac">
+		<delete file="${lib.home}/${ant.project.name}.jar" failonerror="false" />
+		<jar basedir="${classes.home}" jarfile="${lib.home}/${ant.project.name}.jar">
+			<manifest>
+				<attribute name="Built-By" value="liujiang" />
+				<attribute name="Manifest-Version" value="1.2" />
+				<attribute name="Created-By" value="liujiang" />
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="zip" description="Zip all file" depends="clean,init,javac,jar">
+		<delete file="${zip.file.name}.zip" failonerror="false" />
+
+		<delete dir="${dist.home}" failonerror="false" />
+		<mkdir dir="${dist.home}" />
+		<mkdir dir="${dist.home}/log" />
+		<mkdir dir="${dist.home}/tmp" />
+		<mkdir dir="${dist.home}/cert_files" />
+		<copy todir="${dist.home}/app">
+			<fileset dir="app" />
+		</copy>
+		<copy todir="${dist.home}/config">
+			<fileset dir="config" />
+		</copy>
+		<copy todir="${dist.home}/db">
+			<fileset dir="db" />
+		</copy>
+		<copy todir="${dist.home}/public">
+			<fileset dir="public" />
+		</copy>
+		<copy todir="${dist.home}/lib">
+			<fileset dir="lib" />
+		</copy>
+		<copy todir="${dist.home}/script">
+			<fileset dir="script" />
+		</copy>
+
+		<copy todir="${dist.home}" overwrite="true" flatten="true">
+
+			<fileset dir=".">
+				<include name="server.jar" />
+				<include name="config.ru" />
+				<include name="boot.rb" />
+				<include name="application.rb" />
+				<include name="logger.rb" />
+			</fileset>
+		</copy>
+
+		<java jar="lib/${jruby.jar}" fork="true" failonerror="true" maxmemory="128m">
+			<arg value="script/convert_to_class.rb" />
+
+		</java>
+
+		<zip destfile="${zip.file.name}.zip">
+			<zipfileset dir="${dist.home}/lib" prefix="${zip.file.name}/lib" />
+			<zipfileset dir="${dist.home}/script" prefix="${zip.file.name}/script" />
+			<zipfileset dir="${dist.home}/config" prefix="${zip.file.name}/config" />
+			<zipfileset dir="${dist.home}/app" prefix="${zip.file.name}/app">
+				<include name="**/*.class" />
+				<include name="**/*.erb" />
+			</zipfileset>
+			<zipfileset dir="jruby" prefix="${zip.file.name}/jruby" />
+			<zipfileset dir="${dist.home}/db" prefix="${zip.file.name}/db" />
+			<zipfileset dir="${dist.home}/public" prefix="${zip.file.name}/public" />
+			<zipfileset dir="${dist.home}/cert_files" excludes="**/*" prefix="${zip.file.name}/cert_files" />
+			<zipfileset dir="${dist.home}/log" excludes="**/*" prefix="${zip.file.name}/log" />
+			<zipfileset dir="${dist.home}/tmp" excludes="**/*" prefix="${zip.file.name}/tmp" />
+			<zipfileset dir="${dist.home}" includes="server.jar" fullpath="${zip.file.name}/server.jar" />
+			<zipfileset dir="${dist.home}" includes="config.ru" fullpath="${zip.file.name}/config.ru" />
+			<zipfileset dir="${dist.home}" includes="boot.class" fullpath="${zip.file.name}/boot.class" />
+			<zipfileset dir="${dist.home}" includes="application.class" fullpath="${zip.file.name}/application.class" />
+			<zipfileset dir="${dist.home}" includes="logger.class" fullpath="${zip.file.name}/logger.class" />
+		</zip>
+
+		
+	</target>
+
+	<target name="rake:db:create" description="exec rake file">
+		<java jar="lib/${jruby.jar}" fork="true" failonerror="true" maxmemory="128m">
+			<arg value="install.rb force" />
+		</java>
+	</target>
+
+	<target name="bundle:install" description="exec bundle install">
+		<java jar="lib/${jruby.jar}" fork="true" failonerror="true" maxmemory="512M">
+			<arg value="-S" />
+			<arg value="gem" />
+			<arg value="install" />
+			<arg value="bundler" />
+			<arg value="--no-rdoc" />
+			<arg value="--no-ri" />
+			<arg value="-i" />
+			<arg value="jruby/1.9" />
+		</java>
+
+
+		<java jar="lib/${jruby.jar}" fork="true" failonerror="true" maxmemory="512m">
+			<arg value="-S" />
+			<arg value="jruby/1.9/bin/bundle" />
+			<arg value="install" />
+			<arg value="--path=." />
+		</java>
+
+	</target>
+
+	<target name="rake:db:migrate" description="exec rake file">
+		<java jar="lib/${jruby.jar}" fork="true" failonerror="true" maxmemory="128m">
+			<arg value="install.rb" />
+		</java>
+	</target>
+
+</project>
+
